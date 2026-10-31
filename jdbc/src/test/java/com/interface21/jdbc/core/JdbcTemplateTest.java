@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -141,5 +142,36 @@ class JdbcTemplateTest {
                 .hasCause(exception);
         verify(statement).close();
         verify(connection).close();
+    }
+
+    @Test
+    void queryWithConnection() throws SQLException {
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getString("account")).thenReturn("gugu");
+
+        final Optional<String> account = jdbcTemplate.queryForObject(
+                connection, "select account from users where id = ?", row -> row.getString("account"), 1L);
+
+        assertThat(account).contains("gugu");
+        verify(statement).setObject(1, 1L);
+        verify(resultSet).close();
+        verify(statement).close();
+        verify(connection, never()).close();
+        verify(connection, never()).commit();
+        verify(connection, never()).rollback();
+    }
+
+    @Test
+    void sqlExceptionWithConnection() throws SQLException {
+        final SQLException exception = new SQLException("수정 실패");
+        when(statement.executeUpdate()).thenThrow(exception);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(connection, "update users set password = ?", "newPassword"))
+                .isInstanceOf(DataAccessException.class)
+                .hasCause(exception);
+        verify(statement).close();
+        verify(connection, never()).close();
+        verify(connection, never()).commit();
+        verify(connection, never()).rollback();
     }
 }
