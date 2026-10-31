@@ -15,6 +15,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -115,6 +116,29 @@ class JdbcTemplateTest {
                 .isInstanceOf(DataAccessException.class)
                 .hasCause(exception);
         verify(resultSet).close();
+        verify(statement).close();
+        verify(connection).close();
+    }
+
+    @Test
+    void sqlExceptionInPrepareStatement() throws SQLException {
+        final SQLException exception = new SQLException("SQL 준비 실패");
+        when(connection.prepareStatement(anyString())).thenThrow(exception);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("update users set password = ?", "newPassword"))
+                .isInstanceOf(DataAccessException.class)
+                .hasCause(exception);
+        verify(connection).close();
+    }
+
+    @Test
+    void sqlExceptionInSetParameters() throws SQLException {
+        final SQLException exception = new SQLException("파라미터 설정 실패");
+        doThrow(exception).when(statement).setObject(1, "newPassword");
+
+        assertThatThrownBy(() -> jdbcTemplate.update("update users set password = ?", "newPassword"))
+                .isInstanceOf(DataAccessException.class)
+                .hasCause(exception);
         verify(statement).close();
         verify(connection).close();
     }
